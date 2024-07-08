@@ -1,100 +1,133 @@
 const Workout = require("../models/Workout");
+const { verify } = require("../auth"); // Import verifyOwnership middleware
 
+// Add Workout
 module.exports.addWorkout = (req, res) => {
-  return Workout.findOne({ name: req.body.name })
+  const { userId, name, duration } = req.body;
+
+  // Ensure the user creating the workout is the authenticated user
+  if (userId !== req.user.id) {
+    return res.status(403).send({
+      error: "You are not authorized to create a workout for another user",
+    });
+  }
+
+  Workout.findOne({ name })
     .then((existingWorkout) => {
       if (existingWorkout) {
         return res.status(409).send({ error: "Workout already exists" });
       }
 
-      let newWorkout = new Workout({
-        userId: req.body.userId,
-        name: req.body.name,
-        duration: req.body.duration,
+      const newWorkout = new Workout({
+        userId,
+        name,
+        duration,
       });
 
       return newWorkout
         .save()
         .then((savedWorkout) => res.status(201).send({ workout: savedWorkout }))
-        .catch((saveError) => {
-          // the error message will be displayed in the terminal
-          console.error("Error in saving the workout: ", saveError);
-
-          // this will be sent as a response to the client
-          return res.status(500).send({ error: "Failed to save the workout" });
-        });
+        .catch((saveError) =>
+          res.status(500).send({ error: "Failed to save the workout" })
+        );
     })
-    .catch((findError) => {
-      // the error message will be displayed in the terminal
-      console.error("Error in finding the workout: ", findError);
-
-      // this will be sent as a response to the client
-      res.status(500).send({ error: "Error in finding the workout" });
-    });
+    .catch((findError) =>
+      res.status(500).send({ error: "Error finding the workout" })
+    );
 };
 
-// Get All Workouts
-module.exports.getAllWorkouts = (req, res) => {
-  return Workout.find({})
-    .then((workouts) => {
-      // added validation to check if there are courses saved in the database
-      if (workouts.length > 0) {
-        return res.status(200).send({ workouts });
-      } else {
-        return res.status(200).send({ message: "No workouts found." });
-      }
-    })
-    .catch((findErr) => {
-      // SEPARATION OF ERROR LOGGING
-      console.error("Error in finding the workouts: ", findErr);
-      res.status(500).send({ error: "Error getting the workouts" });
-    });
-};
-
-// Update a workouts
+// Update a Workout
 module.exports.updateWorkout = (req, res) => {
-  let userId = req.params.userId;
-  let updatedWorkout = {
-    userId: req.body.userId,
-    name: req.body.name,
-    duration: req.body.duration,
-    status: req.body.status,
-  };
+  const workoutId = req.params.workoutId;
+  const { userId, name, duration, status } = req.body;
 
-  return Workout.findByIdAndUpdate(userId, updatedWorkout, { new: true })
-    .then((updatedWorkout) => {
-      if (updatedWorkout) {
-        res.status(200).send({
-          message: "Workouts updated successfully",
-          updatedWorkout: updatedWorkout,
-        });
-      } else {
-        res.status(404).send({ error: "Workout not found" });
+  // Verify ownership before updating
+  Workout.findOne({ _id: workoutId })
+    .then((workout) => {
+      if (!workout) {
+        return res.status(404).send({ error: "Workout not found" });
       }
+
+      if (workout.userId !== req.user.id) {
+        return res
+          .status(403)
+          .send({ error: "You are not authorized to update this workout" });
+      }
+
+      // Update the workout
+      return Workout.findByIdAndUpdate(
+        workoutId,
+        { userId, name, duration, status },
+        { new: true }
+      )
+        .then((updatedWorkout) => {
+          if (!updatedWorkout) {
+            return res.status(404).send({ error: "Workout not found" });
+          }
+
+          res.status(200).send({
+            message: "Workout updated successfully",
+            updatedWorkout: updatedWorkout,
+          });
+        })
+        .catch((updateErr) =>
+          res.status(500).send({ error: "Error updating the workout" })
+        );
     })
-    .catch((updateErr) => {
-      console.error("Error in updating the workouts: ", updateErr);
-      return res.status(500).send({ error: "Error in updating the workout" });
-    });
+    .catch((findError) =>
+      res.status(500).send({ error: "Error finding the workout" })
+    );
 };
 
-// Delete Workout
-
+// Delete a Workout
 module.exports.deleteWorkout = (req, res) => {
   const workoutId = req.params.workoutId;
 
-  return Workout.deleteOne({ _id: workoutId })
-    .then((deleted) => {
-      if (deleted) {
-        res
-          .status(200)
-          .send({ message: "Workout deleted successfully", deleted: deleted });
+  // Verify ownership before deleting
+  Workout.findOne({ _id: workoutId })
+    .then((workout) => {
+      if (!workout) {
+        return res.status(404).send({ error: "Workout not found" });
+      }
+
+      if (workout.userId !== req.user.id) {
+        return res
+          .status(403)
+          .send({ error: "You are not authorized to delete this workout" });
+      }
+
+      // Delete the workout
+      return Workout.deleteOne({ _id: workoutId })
+        .then((deleted) => {
+          if (deleted) {
+            res.status(200).send({
+              message: "Workout deleted successfully",
+              deleted: deleted,
+            });
+          } else {
+            res.status(500).send({ error: "Failed to delete workout" });
+          }
+        })
+        .catch((deleteErr) =>
+          res.status(500).send({ error: "Error deleting the workout" })
+        );
+    })
+    .catch((findError) =>
+      res.status(500).send({ error: "Error finding the workout" })
+    );
+};
+
+// Get All Workouts (No changes needed if each request is filtered by userId in middleware)
+module.exports.getAllWorkouts = (req, res) => {
+  Workout.find({ userId: req.user.id }) // Filter by authenticated userId
+    .then((workouts) => {
+      if (workouts.length > 0) {
+        res.status(200).send({ workouts });
       } else {
-        res.status(500).send("Deleting workout failed");
+        res.status(200).send({ message: "No workouts found" });
       }
     })
-    .catch((findErr) => {
-      console.error("Error to deleting workout: ", findErr);
-      return res.status(500).send({ error: "Failed to delete workout." });
-    });
+    .catch((findError) =>
+      res.status(500).send({ error: "Error getting the workouts" })
+    );
 };
