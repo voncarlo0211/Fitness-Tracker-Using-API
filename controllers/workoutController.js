@@ -3,9 +3,10 @@ const { verify } = require("../auth"); // Import verifyOwnership middleware
 
 // Add Workout
 module.exports.addWorkout = (req, res) => {
-  const { userId, name, duration } = req.body;
+  const { name, duration } = req.body;
+  const userId = req.user.id;
 
-  // Ensure the user creating the workout is the authenticated user
+  // // Ensure the user creating the workout is the authenticated user
   if (userId !== req.user.id) {
     return res.status(403).send({
       error: "You are not authorized to create a workout for another user",
@@ -19,7 +20,7 @@ module.exports.addWorkout = (req, res) => {
       }
 
       const newWorkout = new Workout({
-        userId,
+        userId: req.user.id,
         name,
         duration,
       });
@@ -39,7 +40,7 @@ module.exports.addWorkout = (req, res) => {
 // Update a Workout
 module.exports.updateWorkout = (req, res) => {
   const workoutId = req.params.workoutId;
-  const { userId, name, duration, status } = req.body;
+  const { name, duration, status } = req.body;
 
   // Verify ownership before updating
   Workout.findOne({ _id: workoutId })
@@ -57,7 +58,7 @@ module.exports.updateWorkout = (req, res) => {
       // Update the workout
       return Workout.findByIdAndUpdate(
         workoutId,
-        { userId, name, duration, status },
+        { name, duration, status },
         { new: true }
       )
         .then((updatedWorkout) => {
