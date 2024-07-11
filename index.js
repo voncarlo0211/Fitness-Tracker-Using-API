@@ -1,6 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
-// const cors = require("cors");
+const cors = require("cors");
 
 const userRoutes = require("./routes/user");
 const workoutRoutes = require("./routes/workout");
@@ -12,6 +12,7 @@ const port = 4000;
 // Middle Ware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 
 // connects our applicaion to our database
 mongoose.connect(
