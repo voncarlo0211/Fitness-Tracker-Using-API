@@ -132,3 +132,23 @@ module.exports.getAllWorkouts = (req, res) => {
       res.status(500).send({ error: "Error getting the workouts" })
     );
 };
+
+module.exports.getWorkoutsById = (req, res) => {
+  const workoutId = req.params.workoutId;
+
+  Workout.findById({ _id: workoutId })
+    .then((workouts) => {
+      if (!workouts) {
+        return res
+          .status(404)
+          .send({ error: "No workouts found for this user" });
+      }
+
+      return res.status(200).send({ workouts });
+    })
+    .catch((findErr) => {
+      console.error("Error finding workouts: ", findErr);
+
+      return res.status(500).send({ error: "Failed to fetch workouts" });
+    });
+};
